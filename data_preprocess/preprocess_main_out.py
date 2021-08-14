@@ -44,6 +44,10 @@ flags.DEFINE_bool(
     'target ids will correspond to the tag sequence KEEP-DELETE-KEEP-DELETE... '
     'which should be very unlikely to be predicted by chance. This will be '
     'useful for getting more accurate eval scores during training.')
+flags.DEFINE_bool(
+    'remove_unaligned', True,
+    'Whether to remove unaligned instances. Generally, it is set True/False '
+    'for training/dev set.')
 
 
 def _write_example_count(count: int) -> Text:
@@ -90,7 +94,11 @@ def main(argv):
     example = builder.build_bert_example(
         sources, target,
         FLAGS.output_arbitrary_targets_for_infeasible_examples)
-    if example is None or example.features["can_convert"]==False:
+    #if example is None:
+    #  print(sources)
+    #  print(target)
+    #  print('--------')
+    if FLAGS.remove_unaligned and (example is None or example.features["can_convert"]==False):
       continue
     file_tag.write(" ".join([str(s) for s in example.features["labels"]])+"\n")
     file_sen.write(" ".join(example.features["input_tokens"]).replace("[CI]", "|")+"\n")

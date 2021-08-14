@@ -75,7 +75,7 @@ class DataLoader(object):
 
         return bert_tokens, bert_label_action, bert_label_start, bert_label_end, token_start_indices
 
-    def load_sentences_tags(self, sentences_file, tags_file, d):
+    def load_sentences_tags(self, sentences_file, tags_file, d, unk_mapping=None):
         """Loads sentences and tags from their corresponding files.
             Maps tokens and tags to their indices and stores them in the provided dict d.
         """
@@ -86,6 +86,8 @@ class DataLoader(object):
             for line in file:
                 # replace each token by its index
                 tokens = line.strip().split(' ')
+                if unk_mapping is not None:
+                    tokens = [unk_mapping.get(x,x) for x in tokens]
                 subwords = list(map(self.tokenizer.tokenize, tokens))
                 subword_lengths = list(map(len, subwords))
                 subwords = [self.tokenizer.cls_token] + [item for indices in subwords for item in indices]
@@ -151,7 +153,7 @@ class DataLoader(object):
         d['query_boundary'] = boundaries
         print('Number of filterd over-size instances: {}'.format(num_filtered))
 
-    def load_data(self, data_type, data_path=None):
+    def load_data(self, data_type, data_path=None, unk_mapping=None):
         """Loads the data for each type in types from data_dir.
 
         Args:
@@ -161,7 +163,7 @@ class DataLoader(object):
         """
         data = {}
         if data_path != None: # specified file for inference
-            self.load_sentences_tags(data_path, tags_file=None, d=data)
+            self.load_sentences_tags(data_path, tags_file=None, d=data, unk_mapping=unk_mapping)
             return data
 
         if 'train' in data_type or 'dev' in data_type or 'test' in data_type or 'debug' in data_type:

@@ -78,6 +78,8 @@ def convert_back_tags(source_len, pred_action, pred_start, pred_end, boundaries,
     return pred_tags, pred_probs
 
 def tags_to_decisions(source, labels, probs):
+    if 'unk_mapping_rev' in globals():
+        source = [unk_mapping_rev.get(x,x) for x in source]
     jobj = {'source':source, 'decisions':[]}
     for i, (token, tag) in enumerate(zip(source, labels)):
         added_phrase = tag.split("|")[1]
@@ -310,6 +312,12 @@ def interAct(model, data_iterator, params, mark='Interactive', verbose=False):
 
     return(get_entities(pred_tags))
 
+
+unk_words = ['抔', '樨', '亓', '頔', '媺', '郄', '骝', '俣', '琤', '吔', '晧', '罇', '甑', '湉']
+unk_mapping = {x:'[unused{}]'.format(i+1) for i, x in enumerate(unk_words)}
+unk_mapping_rev = {'[unused{}]'.format(i+1):x for i, x in enumerate(unk_words)}
+unk_placeholders = list(unk_mapping_rev.keys())
+
 if __name__ == '__main__':
     args = parser.parse_args()
 
@@ -348,6 +356,7 @@ if __name__ == '__main__':
     print('BERT path: {}'.format(bert_class))
 
     data_loader = DataLoader(data_dir, bert_class, params, tag_pad_idx=-1, lower_case=True)
+    data_loader.tokenizer.add_special_tokens({"additional_special_tokens": unk_placeholders})
 
     # Load the model
     tagger_model_path = os.path.join(tagger_model_dir, args.epoch)
@@ -361,7 +370,7 @@ if __name__ == '__main__':
     rl_model = None
 
     # Load data
-    test_data = data_loader.load_data(data_type='dev_{}'.format(args.fold), data_path=data_path)
+    test_data = data_loader.load_data(data_type='dev_{}'.format(args.fold), data_path=data_path, unk_mapping=unk_mapping)
     print('Size {}'.format(test_data['size']))
 
     # Specify the test set size
