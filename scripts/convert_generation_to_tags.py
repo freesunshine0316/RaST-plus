@@ -2,10 +2,11 @@
 import os, sys, json
 from transformers import BertTokenizer
 
-unk_words = ['抔', '樨', '亓', '頔', '媺', '郄', '骝', '俣', '琤', '吔', '晧', '罇', '甑', '湉']
+unk_words = json.load(open('../unk.json', 'r'))
 unk_mapping = {x:'[unused{}]'.format(i+1) for i, x in enumerate(unk_words)}
 unk_mapping_rev = {'[unused{}]'.format(i+1):x for i, x in enumerate(unk_words)}
 unk_placeholders = list(unk_mapping_rev.keys())
+print('unk_number {}'.format(len(unk_placeholders)))
 
 def _lcs_table(source, target):
     """Returns the Longest Common Subsequence dynamic programming table."""
@@ -62,7 +63,7 @@ def alphabet_tokenize(sen):
         else:
             english_token.append(tokens[i])
     if len(english_token)>0:
-        result.append("".join(english_token))
+        result.append("".join(english_token).lower())
     return result
 
 def tokenize(string, is_alphabet_splitted, tokenizer):
@@ -112,7 +113,6 @@ def get_tags(task_input, target, tokenizer, id):
 
     return {'source': task_input_tokens, 'decisions': tags}
 
-
 def process_file(source_file, target_file):
     tokenizer = BertTokenizer.from_pretrained("hfl/chinese-roberta-wwm-ext-large")
     tokenizer.add_special_tokens({"additional_special_tokens": unk_placeholders})
@@ -130,7 +130,8 @@ def process_file(source_file, target_file):
             jobj = json.dumps(get_tags(inp, tgt, tokenizer, i), ensure_ascii=False)
             f.write(jobj+'\n')
 
+
 for i in range(10):
-    base = '10fold_kun_v2/v2_fintune_{}_res.txt'.format(i)
+    base = 'final.kun_v3_ca/final_finetune_seed_42_pg_fast_{}_res.txt.ca'.format(i)
     print(base)
-    process_file('coai.validation.sentences.txt', base)
+    process_file('coai.test_with_noise.sentences.txt', base)

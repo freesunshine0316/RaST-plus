@@ -313,7 +313,8 @@ def interAct(model, data_iterator, params, mark='Interactive', verbose=False):
     return(get_entities(pred_tags))
 
 
-unk_words = ['抔', '樨', '亓', '頔', '媺', '郄', '骝', '俣', '琤', '吔', '晧', '罇', '甑', '湉']
+unk_words = json.load(open('unk.json', 'r'))
+print('UNK vocab size {}'.format(len(unk_words)))
 unk_mapping = {x:'[unused{}]'.format(i+1) for i, x in enumerate(unk_words)}
 unk_mapping_rev = {'[unused{}]'.format(i+1):x for i, x in enumerate(unk_words)}
 unk_placeholders = list(unk_mapping_rev.keys())
