@@ -1,4 +1,4 @@
-# Scripts for data preparing and system ensemble
+# Scripts for Data Preparing and System Ensemble
 
 1. data preparing
 
