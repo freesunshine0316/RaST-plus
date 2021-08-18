@@ -24,7 +24,7 @@ def tokenize(sen):
     return result
 
 def process_noref(part):
-    f = open('{}_inp'.format(part), 'w')
+    f = open('{}.sentences.txt'.format(part), 'w')
     for i, line in enumerate(open('{}.txt'.format(part), 'r')):
         line = json.loads(line.strip())
         c1, c2, inp = ' '.join(tokenize(line['query-01'])), ' '.join(tokenize(line['response-01'])), \
@@ -46,6 +46,7 @@ def process(part):
 
 process('train')
 process_noref('validation')
-os.system('head -n 17000 train.tsv > coai.train.tsv')
-os.system('tail -n 3000 train.tsv > coai.dev.tsv')
-
+process_noref('test_with_noise')
+os.system('mv train.tsv coai.all.tsv')
+os.system('mv validation.sentences.txt coai.validation.sentences.txt')
+os.system('mv test_with_noise.sentences.txt coai.test_with_noise.sentences.txt')

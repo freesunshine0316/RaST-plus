@@ -10,6 +10,10 @@ def process(inpaths, outpath):
             f.write(x)
     f.close()
 
-inpaths = ['pretrain_hard.{}.tsv'.format(x) for x in ['train', ]]
-outpath = 'pretrain_hard.wo_context.tsv'
+inpaths = ['coai.{}.tsv'.format(x) for x in ['all', ]]
+outpath = 'coai.wo_context.tsv'
 process(inpaths, outpath)
+
+#inpaths = ['pretrain_hard.{}.tsv'.format(x) for x in ['train', ]]
+#outpath = 'pretrain_hard.wo_context.tsv'
+#process(inpaths, outpath)
