@@ -1,4 +1,4 @@
-# Converting target into tagging sequence
+# Converting Target into Tagging Sequence
 In this part, we provide scripts for how to convert target sequence into tagging sequence. 
 
 ## Data Preprocess
