@@ -4,7 +4,7 @@ P1 pretraining consists of training a language model, such as Roberta, with a la
 There are two tasks used in P1, one of which is the target task, query rewriting, and the other is the language modeling task.
 Running P1:
 ```bash
-python pretrain.py
+python pretrain.py --ARGS
 ```
 Most of the configuration settings have the same meaning as the main training script.
 
@@ -15,6 +15,7 @@ The training task is the target task, query rewriting.
 Because of use of gold training data, P2 pretraining is executed following the folds established in final clean finetuning.
 Running P2:
 ```bash
-python p2_train.py
+python p2_train.py --ARGS
 ```
-Most of the configuration settings have the same meaning as the main training script.
+Most of the configuration settings have the same meaning as the main training script. Note that the script will train
+10 different models using different folds sequentially, so the script should only be run once.
