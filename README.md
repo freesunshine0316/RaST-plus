@@ -29,3 +29,14 @@ This training script trains only one fold at a time, so you have to manage your 
 ## Regular Main Stage Training
 
 TODO
+
+## Cite
+
+```
+@article{hao2020robust,
+  title={Robust Dialogue Utterance Rewriting as Sequence Tagging},
+  author={Hao, Jie and Song, Linfeng and Wang, Liwei and Xu, Kun and Tu, Zhaopeng and Yu, Dong},
+  journal={arXiv preprint arXiv:2012.14535},
+  year={2020}
+}
+```
