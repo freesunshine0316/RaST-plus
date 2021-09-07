@@ -28,7 +28,11 @@ This training script trains only one fold at a time, so you have to manage your 
 
 ## Regular Main Stage Training
 
-TODO
+To conduct regular main stage training, first make the corresponding folder (e.g., ``coai``) under ``experiments``.
+Then put a ``params.json`` into ``coai``. The content inside a ``params.json`` file is irrelavant to whether it is regular training or 10-fold cross validation, so you can copy one (e.g., [this](https://github.com/freesunshine0316/RaST-plus/blob/main/experiments/coai_p1p2/fold_1/params.json)) into ``coai``.
+
+Next, check and modify ``train.sh``. You will modify the command with the comment of ``# regular training``. It basically removes ``--restore_point`` and sets ``--fold`` to empty. Finally, execute ``./train.sh``
+
 
 ## Cite
 
