@@ -37,10 +37,10 @@ Next, check and modify ``train.sh``. You will modify the command with the commen
 ## Cite
 
 ```
-@article{hao2020robust,
-  title={Robust Dialogue Utterance Rewriting as Sequence Tagging},
+@inproceedings{hao2020rast,
+  title={Domain-Robust Dialogue Rewriting as Sequence Tagging},
   author={Hao, Jie and Song, Linfeng and Wang, Liwei and Xu, Kun and Tu, Zhaopeng and Yu, Dong},
-  journal={arXiv preprint arXiv:2012.14535},
-  year={2020}
+  booktitle={Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing},
+  year={2021}
 }
 ```
