@@ -75,6 +75,37 @@ class DataLoader(object):
 
         return bert_tokens, bert_label_action, bert_label_start, bert_label_end, token_start_indices
 
+    def construct_sentences_tags(self, inputs, d, unk_mapping=None):
+        """Loads sentences and tags from their corresponding files.
+            Maps tokens and tags to their indices and stores them in the provided dict d.
+        """
+        sentences = []
+        boundaries = []
+        num_filtered = 0
+        for line in inputs:
+            # replace each token by its index
+            tokens = line.strip().split(' ')
+            if unk_mapping is not None:
+                tokens = [unk_mapping.get(x,x) for x in tokens]
+            subwords = list(map(self.tokenizer.tokenize, tokens))
+            subword_lengths = list(map(len, subwords))
+            subwords = [self.tokenizer.cls_token] + [item for indices in subwords for item in indices]
+            if len(subwords) > self.max_len:
+                print('Over-length instance {} chunked to {}'.format(len(subwords), self.max_len))
+            token_start_idxs = 1 + np.cumsum([0] + subword_lengths[:-1])
+            sentences.append((self.tokenizer.convert_tokens_to_ids(subwords),token_start_idxs))
+            #if self.tokenizer.unk_token_id in sentences[-1][0]:
+            #    print(tokens)
+            #    print(subwords)
+            boundaries.append(subwords.index('|'))
+
+        # storing sentences and tags in dict d
+        d['data'] = sentences
+        d['size'] = len(sentences)
+        d['query_boundary'] = boundaries
+        print('Number of filterd over-size instances: {}'.format(num_filtered))
+
+
     def load_sentences_tags(self, sentences_file, tags_file, d, unk_mapping=None):
         """Loads sentences and tags from their corresponding files.
             Maps tokens and tags to their indices and stores them in the provided dict d.
