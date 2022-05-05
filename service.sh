@@ -1,15 +1,10 @@
 
-#for x in fold_10_61_8876 fold_1_60_8897 fold_2_73_8945 fold_3_47_8945 fold_4_73_8923 fold_5_71_8822 fold_6_75_8906 fold_7_80_8846 fold_8_28_8877 fold_9_80_8925
-#do
-#    python evaluate.py \
-#            --dataset ./data/coai.test_with_noise.sentences.txt \
-#            --model coai/$x \
-#            --epoch "" \
-#            --gpu 6 \
-#            --span_thres 0.5 \
-#            --bert_path hfl/chinese-roberta-wwm-ext-large \
-#            --dump_decisions_instead
-#done
+python service.py \
+        --model coai/v2_roberta_large_76_8955 \
+        --epoch "" \
+        --gpu 4 \
+        --span_thres 0.5 \
+        --bert_path hfl/chinese-roberta-wwm-ext-large
 
 #for x in fold_10_27_8913   fold_1_62_8942   fold_2_80_8932  fold_3_36_8911  fold_4_60_8936  fold_5_71_8849  fold_6_80_8943  fold_7_62_8952  fold_8_60_8902  fold_9_23_8970
 #do

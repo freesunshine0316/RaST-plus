@@ -15,7 +15,6 @@ from transformers import BertTokenizer
 import requests
 from flask import Flask, request
 from flask_restful import Api, Resource, reqparse
-from server_utils import preprocess_turns
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -83,16 +82,23 @@ def convert_back_tags(source_len, pred_action, pred_start, pred_end, boundaries,
             pred_probs.append(p_probs)
     return pred_tags, pred_probs
 
-def tags_to_decisions(source, labels, probs):
+def tags_to_decisions(source, boundary, labels, probs):
     if 'unk_mapping_rev' in globals():
         source = [unk_mapping_rev.get(x,x) for x in source]
-    jobj = {'source':source, 'decisions':[]}
+
+    decisions = []
     for i, (token, tag) in enumerate(zip(source, labels)):
-        added_phrase = tag.split("|")[1]
-        start, end = added_phrase.split("#")[0], added_phrase.split("#")[1]
+        if i <= boundary or tag == 'KEEP|0#0':
+            continue
+        span = tag.split("|")[1]
+        st, ed = int(span.split("#")[0]), int(span.split("#")[1])
+        add_phrase = " ".join(source[st:ed+1])
         action = tag.split("|")[0]
-        jobj['decisions'].append([action, probs[i][0], int(start), int(end), probs[i][1]])
-    return json.dumps(jobj, ensure_ascii=False)
+        assert action in ('DELETE', 'KEEP')
+        decision_str = '{} ==> {}'.format(token, add_phrase) if action == 'DELETE' \
+                else '{} ==> {}{}'.format(token, add_phrase, token)
+        decisions.append({i-boundary-1: decision_str})
+    return decisions
 
 def tags_to_string(source, labels, special_tokens):
     output_tokens = []
@@ -112,39 +118,29 @@ def tags_to_string(source, labels, special_tokens):
         while tkn in output_tokens:
             output_tokens.remove(tkn)
 
-
     if len(output_tokens)==0:
        output_tokens.append("*")
     elif len(output_tokens) > 1 and output_tokens[-1]=="*":
        output_tokens = output_tokens[:-1]
     return convert_tokens_to_string(output_tokens)
 
-def evaluate(model, rl_model, tokenizer, data_iterator, params, epoch, mark='Eval', verbose=False, is_out_of_domain=False):
+def decode(model, rl_model, tokenizer, data_iterator, params):
     """Evaluate the model on `steps` batches."""
     # set model to evaluation mode
     model.eval()
 
     idx2tag = params.idx2tag
 
-    true_action_tags = []
     pred_action_tags = []
-
-    true_start_tags = []
     pred_start_tags = []
-
-    true_end_tags = []
     pred_end_tags = []
 
     pred_action_probs = []
     pred_span_probs = []
 
-    # a running average object for loss
-    loss_avg = utils.RunningAverage()
-
     context_query_boundaries = []
     source_tokens = []
     source_len = []
-    references = []
 
     for _ in range(params.eval_steps):
         # fetch the next evaluation batch
@@ -154,169 +150,58 @@ def evaluate(model, rl_model, tokenizer, data_iterator, params, epoch, mark='Eva
         #print("batch action:", batch_action.size())
         #print("batch reference:", len(batch_ref))
 
-        context_query_boundaries.extend(boundaries)
+        context_query_boundaries.extend(boundaries.detach().cpu().tolist())
         source_tokens.extend(batch_data)
         source_len.extend(batch_data_len.cpu().tolist())
         #print("len source:", len(source_tokens))
 
-        if mark != "Infer":
-            xxx = model((batch_data, batch_data_len, batch_token_starts, batch_ref),
-                    rl_model, token_type_ids=None, attention_mask=batch_masks,
-                    labels_action=batch_action, labels_start=batch_start, labels_end=batch_end)
-            loss, output = xxx[0], xxx[1:]
-            loss_avg.update(loss.item())
-
-            references.extend(batch_ref)
-            #print("len references:", len(references))
-        else:
-            output = model((batch_data, batch_data_len, batch_token_starts, batch_ref),
-                    rl_model, token_type_ids=None, attention_mask=batch_masks)
+        output = model((batch_data, batch_data_len, batch_token_starts, batch_ref),
+                rl_model, token_type_ids=None, attention_mask=batch_masks)
 
         batch_action_probs = output[0].detach().cpu().tolist() # [batch, max_len]
         pred_action_probs.extend(batch_action_probs)
 
         batch_action_output = output[1]
         batch_action_output = batch_action_output.detach().cpu().numpy()
-        if mark != "Infer":
-            batch_action = batch_action.to('cpu').numpy()
 
         batch_span_probs = output[2].detach().cpu().tolist() # [batch, max_len]
         pred_span_probs.extend(batch_span_probs)
 
         batch_start_output = output[3]
         batch_start_output = batch_start_output.detach().cpu().numpy()
-        if mark != "Infer":
-            batch_start = batch_start.to('cpu').numpy()
 
         batch_end_output = output[4]
         batch_end_output = batch_end_output.detach().cpu().numpy()
-        if mark != "Infer":
-            batch_end = batch_end.to('cpu').numpy()
 
         pred_action_tags.extend([[idx2tag.get(idx) for idx in indices] for indices in batch_action_output])
-        if mark != "Infer":
-            true_action_tags.extend([[idx2tag.get(idx) if idx != -1 else '-1' for idx in indices] for indices in batch_action])
 
         pred_start_tags.extend([indices for indices in batch_start_output])
-        if mark != "Infer":
-            true_start_tags.extend([indices for indices in batch_start])
 
         pred_end_tags.extend([indices for indices in batch_end_output])
-        if mark != "Infer":
-            true_end_tags.extend([indices for indices in batch_end])
 
     pred_tags, pred_probs = convert_back_tags(source_len, pred_action_tags, pred_start_tags, pred_end_tags, context_query_boundaries,
             pred_action_probs=pred_action_probs, pred_span_probs=pred_span_probs)
-    if mark != "Infer":
-        true_tags, _ = convert_back_tags(source_len, true_action_tags, true_start_tags, true_end_tags, context_query_boundaries)
 
     source = []
     for i in range(len(source_tokens)):
         src = tokenizer.convert_ids_to_tokens(source_tokens[i].tolist())
-        assert tokenizer.pad_token not in src[:source_len[i]]
-        assert src[source_len[i]:].count(tokenizer.pad_token) == len(src) - source_len[i]
+        #assert tokenizer.pad_token not in src[:source_len[i]]
+        #assert src[source_len[i]:].count(tokenizer.pad_token) == len(src) - source_len[i]
         source.append(src[:source_len[i]])
 
     special_tokens = set([tokenizer.cls_token, tokenizer.sep_token, tokenizer.unk_token, tokenizer.pad_token, '*', '|'])
-    hypo = []
+    rewriting_results, decisions = [], []
     for i in range(len(pred_tags)):
         #print("source:", source[i])
         #print("pred_tags:", pred_tags[i])
-        assert len(source[i])==len(pred_tags[i])
-        if 'args' in globals() and args.dump_decisions_instead:
-            pred = tags_to_decisions(source[i], pred_tags[i], pred_probs[i])
-            hypo.append(pred)
-        else:
-            pred = tags_to_string(source[i], pred_tags[i], special_tokens).strip()
-            hypo.append(pred.lower())
-            #print("hypo:", pred.lower())
+        #assert len(source[i])==len(pred_tags[i])
+        rew = tags_to_string(source[i], pred_tags[i], special_tokens).strip()
+        rewriting_results.append(rew)
+        dec = tags_to_decisions(source[i], context_query_boundaries[i], pred_tags[i], pred_probs[i])
+        decisions.append(dec)
+        #print("hypo:", rew.lower())
 
-    if mark == 'Infer':
-        outpath = epoch
-        pred_out = open(outpath, "w")
-        for i in range(len(hypo)):
-            pred_out.write(hypo[i]+"\n")
-        pred_out.close()
-        return
-
-    if 'args' in globals() and args.dump_decisions_instead:
-        print('args.dump_decisions_instead only works with Infer mode')
-        return
-
-    if mark == "Test":
-        file_name = "/prediction_emnlp"+"_"+str(epoch)+"_.txt"
-        pred_out = open(params.tagger_model_dir+file_name, "w")
-        for i in range(len(hypo)):
-            pred_out.write(hypo[i]+"\n")
-        pred_out.close()
-
-    if mark == "Val":
-        file_name = "/prediction_acl"+"_"+str(epoch)+"_.txt"
-        pred_out = open(params.tagger_model_dir+file_name, "w")
-        for i in range(len(hypo)):
-            pred_out.write(hypo[i]+"\n")
-        pred_out.close()
-
-    assert len(pred_tags) == len(true_tags)
-
-    for i in range(len(pred_tags)):
-        assert len(pred_tags[i]) == len(true_tags[i])
-
-    if is_out_of_domain:
-        logging.info("***********Out-of-domain evaluation************")
-
-    # logging loss, f1 and report
-    metrics = {}
-    metrics['rev_wer'] = Metrics.wer_score(references, hypo)*100.0
-    bleu1, bleu2, bleu3, bleu4 = Metrics.bleu_score(references, hypo)
-    em_score = Metrics.em_score(references, hypo)
-    rouge1, rouge2, rougel = Metrics.rouge_score(references, hypo)
-    metrics['bleu1'] = bleu1*100.0
-    metrics['bleu2'] = bleu2*100.0
-    metrics['bleu3'] = bleu3*100.0
-    metrics['bleu4'] = bleu4*100.0
-    metrics['rouge1'] = rouge1*100.0
-    metrics['rouge2'] = rouge2*100.0
-    metrics['rouge-L'] = rougel*100.0
-    metrics['em_score'] = em_score*100.0
-    f1 = f1_score(true_tags, pred_tags)
-    metrics['loss'] = loss_avg()
-    metrics['f1'] = f1
-    accuracy = accuracy_score(true_tags, pred_tags)
-    metrics['accuracy'] = accuracy
-    metrics_str = "; ".join("{}: {:05.2f}".format(k, v) for k, v in metrics.items())
-    logging.info("- {} metrics: ".format(mark) + metrics_str)
-
-    if verbose:
-        report = classification_report(true_tags, pred_tags)
-        logging.info(report)
-    return metrics
-
-def interAct(model, data_iterator, params, mark='Interactive', verbose=False):
-    """Evaluate the model on `steps` batches. Unused"""
-    assert False, 'buggy function unused'
-    # set model to evaluation mode
-    model.eval()
-
-    idx2tag = params.idx2tag
-
-    true_tags = []
-    pred_tags = []
-
-    # a running average object for loss
-    loss_avg = utils.RunningAverage()
-
-
-    batch_data, batch_token_starts = next(data_iterator)
-    batch_masks = batch_data.gt(0)
-
-    batch_output = model((batch_data, batch_token_starts), token_type_ids=None, attention_mask=batch_masks)[0]  # shape: (batch_size, max_len, num_labels)
-
-    batch_output = batch_output.detach().cpu().numpy()
-
-    pred_tags.extend([[idx2tag.get(idx) for idx in indices] for indices in np.argmax(batch_output, axis=2)])
-
-    return(get_entities(pred_tags))
+    return rewriting_results, decisions
 
 
 class RaSTRewriter(Resource):
@@ -326,16 +211,65 @@ class RaSTRewriter(Resource):
         post_data = request.form.to_dict(flat=False)
         if "dialog_turns" in post_data:
             dialog_turns = post_data["dialog_turns"]
+        logging.info(dialog_turns)
 
-        if dialog_turns is None:
+        if dialog_turns == None or len(dialog_turns) == 0:
             return {}
 
-        rewriting_res = self.rewrite(dialog_turns)
+        if len(dialog_turns) == 1:
+            return {'rewrite': dialog_turns[0], 'changes':[], 'origin': dialog_turns[0]}
 
-        return rewriting_res
+        rewriting_results, changes = self.rewrite(dialog_turns)
 
-    def parse(self, inputs):
-        pass
+        return {'rewrite': rewriting_results, 'changes': changes,
+                'origin': ' '.join(RaSTRewriter.tokenize(dialog_turns[-1]))}
+
+    def rewrite(self, dialog_turns):
+        # format data
+        dialog_turns_tokenized = [' '.join(RaSTRewriter.tokenize(turn)) for turn in dialog_turns]
+        if len(dialog_turns_tokenized) >= 3:
+            c1, c2, inp = dialog_turns_tokenized[-3:]
+            inputs = '{} [SEP] {} | {} *'.format(c1, c2, inp)
+        else:
+            c2, inp = dialog_turns_tokenized[-2:]
+            inputs = '{} | {} *'.format(c1, c2, inp)
+
+        data = {}
+        data_loader.construct_sentences_tags([inputs], data, unk_mapping=unk_mapping)
+        print('Size {}'.format(data['size']))
+        data_iter = data_loader.data_iterator(data)
+
+        rewriting_results, decisions = decode(model, rl_model, data_loader.tokenizer, data_iter, params)
+
+        return rewriting_results[0], decisions[0]
+
+    @staticmethod
+    def is_all_chinese(strs):
+        for _char in strs:
+            if not '\u4e00' <= _char <= '\u9fa5':
+                return False
+        return True
+
+    @staticmethod
+    def tokenize(sen):
+        result = []
+        english_token = []
+        tokens = list(sen)
+        for i in range(len(tokens)):
+            if RaSTRewriter.is_all_chinese(tokens[i]):
+                if len(english_token) > 0:
+                    result.append("".join(english_token))
+                    english_token = []
+                result.append(tokens[i])
+            else:
+                english_token.append(tokens[i])
+        if len(english_token)>0:
+            result.append("".join(english_token))
+        return result
+
+
+api.add_resource(RaSTRewriter, '/rast')
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -373,9 +307,6 @@ if __name__ == '__main__':
     # Set the logger
     utils.set_logger(os.path.join(tagger_model_dir, 'evaluate.log'))
 
-    # Create the input data pipeline
-    logging.info("Loading the dataset...")
-
     bert_class = args.bert_path
     print('BERT path: {}'.format(bert_class))
 
@@ -393,28 +324,14 @@ if __name__ == '__main__':
     #rl_model.eval()
     rl_model = None
 
-    # Load data
-    test_data = data_loader.load_data(data_type='dev_{}'.format(args.fold), data_path=data_path, unk_mapping=unk_mapping)
-    print('Size {}'.format(test_data['size']))
-
     # Specify the test set size
-    params.test_size = test_data['size']
+    params.test_size = 1
     params.eval_steps = math.ceil(params.test_size / params.batch_size)
-    test_data_iterator = data_loader.data_iterator(test_data, shuffle=False)
 
     params.tagger_model_dir = tagger_model_dir
 
     logging.info("- done.")
 
-    logging.info("Starting evaluation/inferring...")
-    if data_path is None:
-        test_metrics = evaluate(model, rl_model, data_loader.tokenizer, test_data_iterator, params,
-                epoch='Test', mark='Test', verbose=False)
-    else:
-        model_id = args.model.replace('/', '_')
-        if args.epoch != "":
-            model_id = '{}_{}'.format(model_id, args.epoch)
-        pred_path = '{}_{}.pred'.format(data_path, model_id)
-        #pred_path = data_path+'.pred'
-        test_metrics = evaluate(model, rl_model, data_loader.tokenizer, test_data_iterator, params,
-                epoch=pred_path, mark='Infer', verbose=False)
+    logging.info('RaST rewriting service is now available')
+    app.run(host='0.0.0.0', port=2206)
+
