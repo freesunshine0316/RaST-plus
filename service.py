@@ -206,7 +206,7 @@ def decode(model, rl_model, tokenizer, data_iterator, params):
 
 class RaSTRewriter(Resource):
     def post(self):
-        print("getting a post request ....")
+        logging.info("getting a post request ....")
         dialog_turns = None
         post_data = request.form.to_dict(flat=False)
         if "dialog_turns" in post_data:
@@ -219,7 +219,9 @@ class RaSTRewriter(Resource):
         if len(dialog_turns) == 1:
             return {'rewrite': dialog_turns[0], 'changes':[], 'origin': dialog_turns[0]}
 
-        rewriting_results, changes = self.rewrite(dialog_turns)
+        rewriting_results_space, changes = self.rewrite(dialog_turns)
+        rewriting_results = RaSTRewriter.remove_space(rewriting_results_space)
+        logging.info(rewriting_results)
 
         return {'rewrite': rewriting_results, 'changes': changes,
                 'origin': ' '.join(RaSTRewriter.tokenize(dialog_turns[-1]))}
@@ -236,12 +238,24 @@ class RaSTRewriter(Resource):
 
         data = {}
         data_loader.construct_sentences_tags([inputs], data, unk_mapping=unk_mapping)
-        print('Size {}'.format(data['size']))
+        logging.info('Size {}'.format(data['size']))
         data_iter = data_loader.data_iterator(data)
 
         rewriting_results, decisions = decode(model, rl_model, data_loader.tokenizer, data_iter, params)
 
         return rewriting_results[0], decisions[0]
+
+    @staticmethod
+    # iphone 10 是 我 最 喜 欢 的 smart phone 了 ==> iphone 10是我最喜欢的smart phone了
+    def remove_space(ori_str):
+        new_str = ''
+        pre_ascii = False
+        for tok in ori_str.split():
+            if pre_ascii and tok.isascii():
+                new_str += ' '
+            new_str += tok
+            pre_ascii = tok.isascii()
+        return new_str
 
     @staticmethod
     def is_all_chinese(strs):
@@ -276,13 +290,13 @@ if __name__ == '__main__':
 
     if args.unk_list_file != '':
         unk_words = json.load(open(args.unk_list_file, 'r'))
-        print('UNK vocab size {}'.format(len(unk_words)))
+        logging.info('UNK vocab size {}'.format(len(unk_words)))
         unk_mapping = {x:'[unused{}]'.format(i+1) for i, x in enumerate(unk_words)}
         unk_mapping_rev = {'[unused{}]'.format(i+1):x for i, x in enumerate(unk_words)}
         unk_placeholders = list(unk_mapping_rev.keys())
     else:
         unk_words = []
-        print('UNK vocab size {}'.format(len(unk_words)))
+        logging.info('UNK vocab size {}'.format(len(unk_words)))
         unk_mapping = {}
         unk_mapping_rev = {}
         unk_placeholders = []
@@ -308,14 +322,14 @@ if __name__ == '__main__':
     utils.set_logger(os.path.join(tagger_model_dir, 'evaluate.log'))
 
     bert_class = args.bert_path
-    print('BERT path: {}'.format(bert_class))
+    logging.info('BERT path: {}'.format(bert_class))
 
     data_loader = DataLoader(None, bert_class, params, tag_pad_idx=-1, lower_case=True)
     #data_loader.tokenizer.add_special_tokens({"additional_special_tokens": unk_placeholders})
 
     # Load the model
     tagger_model_path = os.path.join(tagger_model_dir, args.epoch)
-    print(tagger_model_path)
+    logging.info(tagger_model_path)
     model = BertForSequenceTagging.from_pretrained(tagger_model_path, num_labels=len(params.tag2idx))
     model.to(params.device)
 
