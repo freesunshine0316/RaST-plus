@@ -1,6 +1,6 @@
 # RaST-plus
 
-This repository corresponds to our EMNLP-2021 work [Robust Dialogue Utterance Rewriting as Sequence Tagging](https://arxiv.org/abs/2012.14535) with some recent improvements for participating the COAI 2022 competition. The improvements include pretraining with noisy silver data and 10-fold cross validation.
+This repository corresponds to our EMNLP-2021 work [Robust Dialogue Utterance Rewriting as Sequence Tagging](https://arxiv.org/abs/2012.14535) with some recent improvements for participating the [COAI 2021 competition](https://www.biendata.xyz/competition/xiaobu/leaderboard/). The improvements include pretraining with noisy silver data and 10-fold cross validation.
 
 For implementing the results from the EMNLP paper, please directly look at ``Regular Main Stage Training``.
 
