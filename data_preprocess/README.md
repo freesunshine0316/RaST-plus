@@ -6,7 +6,7 @@ This code is customized for the COAI competition, while this model was initially
 
 Inside ``data_preprocess/``, make sure to creat two folders ``data/`` and ``data_out/``. Through out the data preprocessing, you may need to adapt some arguments of the scripts.
 
-First, we extract phrases by aligning the source (current utterance) and target (target rewritten utterance). Before doing that, put data into this folder and execute ``python  1_to_tsv.py`` to convert it into the TSV format. In this tsv file, there are two columns, first is the multi-turn dialogue, the second is the rewrite. Next execute ``python  2_concat_wo_context.py`` to get the version where only the last turn and the rewrite are kept.
+First, we extract phrases by aligning the source (current utterance) and target (target rewritten utterance). Before doing that, put data into this folder and execute ``python  1_to_tsv.py`` to convert it into the TSV format. In this tsv file, there are two columns, where the first column contains the multi-turn dialogue, the second is the rewriting result. Next execute ``python  2_concat_wo_context.py`` to get the version where only the last turn and the rewrite are kept.
 
 Run this command line to extract phrases map for the data:
 ```bash
