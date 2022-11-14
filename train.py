@@ -23,10 +23,15 @@ parser.add_argument('--bert_path', default='None', help="Specified bert path for
 parser.add_argument('--lower_case', action='store_true', default=False)
 parser.add_argument('--gpu', default='3', help="gpu device")
 parser.add_argument('--gpt_rl', dest='gpt_rl', action='store_true', default=False, help="if use the gpt2 model for RL")
-parser.add_argument('--metric_rl', dest='metric_rl', default='', help="if use a sentence-level metric (e.g., BLEU or WER) for RL")
+parser.add_argument('--metric_rl',
+                    dest='metric_rl',
+                    default='',
+                    help="if use a sentence-level metric (e.g., BLEU or WER) for RL")
 parser.add_argument('--seed', type=int, default=2020, help="random seed for initialization")
-parser.add_argument('--restore_point', default=None,
-                    help="Optional, name of the directory containing weights to reload before training, e.g., 'experiments/conll/'")
+parser.add_argument(
+    '--restore_point',
+    default=None,
+    help="Optional, name of the directory containing weights to reload before training, e.g., 'experiments/conll/'")
 
 
 def train_epoch(model, rl_model, tokenizer, data_iterator, optimizer, scheduler, params):
@@ -41,16 +46,23 @@ def train_epoch(model, rl_model, tokenizer, data_iterator, optimizer, scheduler,
     one_epoch = trange(params.train_steps)
     for batch in one_epoch:
         # fetch the next training batch
-        batch_data_len, batch_data, batch_token_starts, batch_ref, batch_action, batch_start, batch_end, _ = next(data_iterator)
-        batch_masks = batch_data != tokenizer.pad_token_id # get padding mask
+        batch_data_len, batch_data, batch_token_starts, batch_ref, batch_action, batch_start, batch_end, _ = next(
+            data_iterator)
+        batch_masks = batch_data != tokenizer.pad_token_id  # get padding mask
 
         batch_size, max_seq_len = list(batch_data.size())
-        batch_masks_v2 = torch.arange(max_seq_len).view(1, max_seq_len).to(batch_data.device) < batch_data_len.view(batch_size, 1) # [batch, seq]
+        batch_masks_v2 = torch.arange(max_seq_len).view(1, max_seq_len).to(batch_data.device) < batch_data_len.view(
+            batch_size, 1)  # [batch, seq]
         assert torch.all(batch_masks == batch_masks_v2)
 
         # compute model output and loss
-        loss = model((batch_data, batch_data_len, batch_token_starts, batch_ref), rl_model, token_type_ids=None, attention_mask=batch_masks,
-            labels_action=batch_action, labels_start=batch_start, labels_end=batch_end)[0]
+        loss = model((batch_data, batch_data_len, batch_token_starts, batch_ref),
+                     rl_model,
+                     token_type_ids=None,
+                     attention_mask=batch_masks,
+                     labels_action=batch_action,
+                     labels_start=batch_start,
+                     labels_end=batch_end)[0]
 
         # update the average loss
         loss_avg.update(loss.item())
@@ -74,8 +86,8 @@ def train_epoch(model, rl_model, tokenizer, data_iterator, optimizer, scheduler,
             model.zero_grad()
 
 
-def train_and_evaluate(model, rl_model, tokenizer, train_data, val_data, test_data, unseen_test_data,
-        optimizer, scheduler, params, model_dir):
+def train_and_evaluate(model, rl_model, tokenizer, train_data, val_data, test_data, unseen_test_data, optimizer,
+                       scheduler, params, model_dir):
     """Train the model and evaluate every epoch."""
     best_val_f1 = 0.0
     patience_counter = 0
@@ -87,7 +99,7 @@ def train_and_evaluate(model, rl_model, tokenizer, train_data, val_data, test_da
         # Compute number of batches in one epoch
         params.train_steps = math.ceil(params.train_size / params.batch_size)
         params.val_steps = math.ceil(params.val_size / params.batch_size)
-        #params.test_steps = math.ceil(params.test_size / params.batch_size)
+        params.test_steps = math.ceil(params.test_size / params.batch_size)
         #params.unseen_test_steps = math.ceil(params.unseen_test_size / params.batch_size)
 
         # data iterator for training
@@ -98,21 +110,21 @@ def train_and_evaluate(model, rl_model, tokenizer, train_data, val_data, test_da
 
         # data iterator for evaluation
         val_data_iterator = data_loader.data_iterator(val_data, shuffle=False)
-        #test_data_iterator = data_loader.data_iterator(test_data, shuffle=False)
+        test_data_iterator = data_loader.data_iterator(test_data, shuffle=False)
         #unseen_test_data_iterator = data_loader.data_iterator(unseen_test_data, shuffle=False)
 
         # Evaluate for one epoch on training set and validation set
         params.eval_steps = params.val_steps
-        val_metrics = evaluate(model, rl_model, tokenizer, val_data_iterator, params, epoch, mark='Val')
+        val_metrics = evaluate(model, rl_model, tokenizer, val_data_iterator, params, epoch, mark='Val-Pos')
 
         val_f1 = val_metrics['rev_wer']
         improve_f1 = val_f1 - best_val_f1
         if improve_f1 > 1e-5:
             logging.info("- Found new best Rev-WER score")
             best_val_f1 = val_f1
-        if os.path.exists(model_dir+"/"+str(epoch)) == False:
-            os.mkdir(model_dir+"/"+str(epoch))
-        model.save_pretrained(model_dir+"/"+str(epoch))
+            if os.path.exists(model_dir + "/" + str(epoch)) is False:
+                os.mkdir(model_dir + "/" + str(epoch))
+            model.save_pretrained(model_dir + "/" + str(epoch))
         # Early stop
         #if improve_f1 < params.patience:
         #    patience_counter += 1
@@ -121,9 +133,9 @@ def train_and_evaluate(model, rl_model, tokenizer, train_data, val_data, test_da
         #if patience_counter > 10:
         #    break
 
-        ## Test data evaluation
-        #params.eval_steps = params.test_steps
-        #test_metrics = evaluate(model, rl_model, tokenizer, test_data_iterator, params, epoch, mark='Test')
+        # Test data evaluation
+        params.eval_steps = params.test_steps
+        evaluate(model, rl_model, tokenizer, test_data_iterator, params, epoch, mark='Val-Neg')
 
         #params.eval_steps = params.unseen_test_steps
         #test_metrics = evaluate(model, rl_model, tokenizer, unseen_test_data_iterator, params, epoch, mark='Test', is_out_of_domain=True)
@@ -175,15 +187,15 @@ if __name__ == '__main__':
     logging.info("Loading the datasets...")
 
     # Load training data and test data
-    train_data = data_loader.load_data('train_{}'.format(args.fold))
-    val_data = data_loader.load_data('dev_{}'.format(args.fold))
-    test_data = None # data_loader.load_data('test')
-    unseen_test_data = None # data_loader.load_data('unseen_test')
+    train_data = data_loader.load_data(f'train_{args.fold}')
+    val_data = data_loader.load_data('dev_pos')
+    test_data = data_loader.load_data('dev_neg')
+    unseen_test_data = None  # data_loader.load_data('unseen_test')
 
     # Specify the training and validation dataset sizes
     params.train_size = train_data['size']
     params.val_size = val_data['size']
-    #params.test_size = test_data['size']
+    params.test_size = test_data['size']
     #params.unseen_test_size = unseen_test_data['size']
 
     logging.info("Loading BERT model...")
@@ -212,13 +224,14 @@ if __name__ == '__main__':
     if params.full_finetuning:
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-        optimizer_grouped_parameters = [
-            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-             'weight_decay': params.weight_decay},
-            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-             'weight_decay': 0.0}
-        ]
-    else: # only finetune the head classifier
+        optimizer_grouped_parameters = [{
+            'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+            'weight_decay': params.weight_decay
+        }, {
+            'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+            'weight_decay': 0.0
+        }]
+    else:  # only finetune the head classifier
         param_optimizer = list(model.classifier.named_parameters())
         optimizer_grouped_parameters = [{'params': [p for n, p in param_optimizer]}]
 
@@ -228,12 +241,13 @@ if __name__ == '__main__':
     train_steps_total = params.epoch_num * train_steps_per_epoch
     scheduler = None
     if params.scheduler == 'linear':
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=3*train_steps_per_epoch, num_training_steps=3*train_steps_total)
+        scheduler = get_linear_schedule_with_warmup(optimizer,
+                                                    num_warmup_steps=3 * train_steps_per_epoch,
+                                                    num_training_steps=3 * train_steps_total)
     print('Scheduler: {}'.format(scheduler))
 
     params.tagger_model_dir = tagger_model_dir
     # Train and evaluate the model
     logging.info("Starting training for {} epoch(s)".format(params.epoch_num))
     train_and_evaluate(model, rl_model, data_loader.tokenizer, train_data, val_data, test_data, unseen_test_data,
-            optimizer, scheduler, params, tagger_model_dir)
-
+                       optimizer, scheduler, params, tagger_model_dir)

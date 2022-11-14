@@ -8,7 +8,9 @@ from jiwer import wer
 import os, sys
 #smoothing_function = SmoothingFunction().method4
 
+
 class Metrics(object):
+
     def __init__(self):
         pass
 
@@ -25,11 +27,14 @@ class Metrics(object):
         :return:
         """
 
+        references = [r.strip().split() for r in references]
+        candidates = [c.strip().split() for c in candidates]
+
         bleu1s = corpus_bleu([[r] for r in references], candidates, weights=(1.0, 0.0, 0.0, 0.0))
         bleu2s = corpus_bleu([[r] for r in references], candidates, weights=(0.5, 0.5, 0.0, 0.0))
         bleu3s = corpus_bleu([[r] for r in references], candidates, weights=(0.33, 0.33, 0.33, 0.0))
         bleu4s = corpus_bleu([[r] for r in references], candidates, weights=(0.25, 0.25, 0.25, 0.25))
-        print("average bleus: bleu1: %.3f, bleu2: %.3f, bleu3: %.3f, bleu4: %.4f" % (bleu1s, bleu2s, bleu3s, bleu4s))
+        print(f"average bleus: bleu1: {bleu1s:.3f}, bleu2: {bleu2s:.3f}, bleu3: {bleu3s:.3f}, bleu4: {bleu4s:.3f}")
         return (bleu1s, bleu2s, bleu3s, bleu4s)
 
     @staticmethod
@@ -97,23 +102,22 @@ if __name__ == '__main__':
     ground_truth = ["hello world", "i like monthy python"]
     hypothesis = ["hello duck", "i like python"]
     print(wer(ground_truth, hypothesis))
-    sys.exit(0)
 
     path_ref = "data/canard/test/sentences.txt"
     path_hypo = "experiments/canard/w_bleu_rl_dot/prediction_task_19_.txt"
     #path_ref = "canard_data/test-tgt.txt"
     #path_hypo = "canard_data/output.tok.txt"
     references = []
-    with open(path_ref, "r")as f:
-         for line in f:
-             ref = line.strip().split("\t")[1]
-             references.append(ref.lower())
+    with open(path_ref, "r") as f:
+        for line in f:
+            ref = line.strip().split("\t")[1]
+            references.append(ref.lower())
 
     candidates = []
-    with open(path_hypo, "r")as f:
-         for i, line in enumerate(f):
-             seq = line.strip().split()
-             candidates.append(" ".join(seq).lower())
+    with open(path_hypo, "r") as f:
+        for i, line in enumerate(f):
+            seq = line.strip().split()
+            candidates.append(" ".join(seq).lower())
     # 计算metrics
     Metrics.bleu_score(references, candidates)
     Metrics.em_score(references, candidates)

@@ -6,8 +6,9 @@
 
 python evaluate.py \
         --dataset coai \
-        --model coai/v2_roberta_large_52_8944 \
+        --subset dev_neg \
+        --model coai/every_1/66 \
         --epoch "" \
-        --gpu 3 \
+        --gpu 0 \
         --span_thres 0.5 \
         --bert_path hfl/chinese-roberta-wwm-ext-large 

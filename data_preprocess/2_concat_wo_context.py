@@ -1,4 +1,3 @@
-
 import os, sys, json
 
 
@@ -10,8 +9,9 @@ def process(inpaths, outpath):
             f.write(x)
     f.close()
 
-inpaths = ['coai.{}.tsv'.format(x) for x in ['all', ]]
-outpath = 'coai.wo_context.tsv'
+
+inpaths = ['coai.{}.tsv'.format(x) for x in ['train_every_1', 'train_every_3', 'train_every_5', 'dev_pos', 'dev_neg']]
+outpath = 'all.wo_context.tsv'
 process(inpaths, outpath)
 
 #inpaths = ['pretrain_hard.{}.tsv'.format(x) for x in ['train', ]]

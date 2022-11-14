@@ -20,7 +20,7 @@
 python train.py \
         --dataset coai \
         --lower_case \
-        --fold "" \
-        --model coai/ \
-        --gpu 5 \
+        --fold "$1" \
+        --model coai/$1 \
+        --gpu $2 \
         --bert_path hfl/chinese-roberta-wwm-ext-large 
